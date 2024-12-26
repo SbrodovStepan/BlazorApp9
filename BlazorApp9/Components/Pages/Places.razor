@@ -1,0 +1,168 @@
+﻿@page "/places"
+@rendermode InteractiveServer
+@using BlazorApp9.Data
+@inject VirtualTourDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Places</PageTitle>
+
+<h1>Manage Places</h1>
+
+@if (places == null)
+{
+    <p>Loading places...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="AddNewPlace">Add New Place</button>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var place in places)
+            {
+                <tr>
+                    <td>@place.Name</td>
+                    <td>@place.Description</td>
+                    <td>@place.Latitude</td>
+                    <td>@place.Longitude</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" @onclick="() => EditPlace(place)">Edit</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeletePlace(place.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showForm)
+{
+    <EditForm Model="currentPlace" OnValidSubmit="SavePlace">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <InputText id="name" class="form-control" @bind-Value="currentPlace.Name" />
+            <ValidationMessage For="() => currentPlace.Name" />
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <InputTextArea id="description" class="form-control" @bind-Value="currentPlace.Description" />
+        </div>
+        <div class="mb-3">
+            <label for="latitude" class="form-label">Latitude</label>
+            <InputNumber id="latitude" class="form-control" @bind-Value="currentPlace.Latitude" />
+        </div>
+        <div class="mb-3">
+            <label for="longitude" class="form-label">Longitude</label>
+            <InputNumber id="longitude" class="form-control" @bind-Value="currentPlace.Longitude" />
+        </div>
+
+        <button type="submit" class="btn btn-success">Save</button>
+        <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+    </EditForm>
+}
+
+@code {
+    private List<Place> places;
+    private Place currentPlace = new();
+    private bool showForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlacesAsync();
+    }
+
+    private async Task LoadPlacesAsync()
+    {
+        places = await DbContext.Places.ToListAsync();
+    }
+
+    private void AddNewPlace()
+    {
+        currentPlace = new Place();
+        showForm = true;
+    }
+
+    private void EditPlace(Place place)
+    {
+        currentPlace = new Place
+            {
+                Id = place.Id,
+                Name = place.Name,
+                Description = place.Description,
+                Latitude = place.Latitude,
+                Longitude = place.Longitude
+            };
+        StateHasChanged();
+        showForm = true;
+    }
+
+
+    private async Task SavePlace()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentPlace.Name))
+            {
+                return;
+            }
+
+            if (currentPlace.Id == 0)
+            {
+                DbContext.Places.Add(currentPlace);
+            }
+            else
+            {
+                var existingPlace = await DbContext.Places.FindAsync(currentPlace.Id);
+                if (existingPlace == null)
+                {
+                    return;
+                }
+
+                existingPlace.Name = currentPlace.Name;
+                existingPlace.Description = currentPlace.Description;
+                existingPlace.Latitude = currentPlace.Latitude;
+                existingPlace.Longitude = currentPlace.Longitude;
+
+                DbContext.Places.Update(existingPlace);
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadPlacesAsync();
+            currentPlace = new Place();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+        showForm = false;
+    }
+
+
+    private async Task DeletePlace(int id)
+    {
+        var place = await DbContext.Places.FindAsync(id);
+        if (place != null)
+        {
+            DbContext.Places.Remove(place);
+            await DbContext.SaveChangesAsync();
+            await LoadPlacesAsync(); 
+        }
+    }
+
+    private void CancelEdit()
+    {
+        currentPlace = new Place();
+        showForm = false;
+    }
+}

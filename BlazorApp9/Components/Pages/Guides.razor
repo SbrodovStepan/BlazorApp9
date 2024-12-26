@@ -1,0 +1,148 @@
+﻿@page "/guides"
+@rendermode InteractiveServer
+@using BlazorApp9.Data
+@inject VirtualTourDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Guides</PageTitle>
+
+<h1>Manage Guides</h1>
+
+@if (guides == null)
+{
+    <p>Loading guides...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="AddNewGuide">Add New Guide</button>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var guide in guides)
+            {
+                <tr>
+                    <td>@guide.Name</td>
+                    <td>@guide.Email</td>
+                    <td>@guide.Phone</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" @onclick="() => EditGuide(guide)">Edit</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteGuide(guide.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showForm)
+{
+    <EditForm Model="currentGuide" OnValidSubmit="SaveGuide">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <InputText id="name" class="form-control" @bind-Value="currentGuide.Name" />
+            <ValidationMessage For="() => currentGuide.Name" />
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <InputText id="email" class="form-control" @bind-Value="currentGuide.Email" />
+            <ValidationMessage For="() => currentGuide.Email" />
+        </div>
+        <div class="mb-3">
+            <label for="phone" class="form-label">Phone</label>
+            <InputText id="phone" class="form-control" @bind-Value="currentGuide.Phone" />
+        </div>
+
+        <button type="submit" class="btn btn-success">Save</button>
+        <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+    </EditForm>
+}
+
+@code {
+    private List<Guide> guides;
+    private Guide currentGuide = new();
+    private bool showForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGuidesAsync();
+    }
+
+    private async Task LoadGuidesAsync()
+    {
+        guides = await DbContext.Guides.ToListAsync();
+    }
+
+    private void AddNewGuide()
+    {
+        currentGuide = new Guide();
+        showForm = true;
+    }
+
+    private void EditGuide(Guide guide)
+    {
+        currentGuide = new Guide
+            {
+                Id = guide.Id,
+                Name = guide.Name,
+                Email = guide.Email,
+                Phone = guide.Phone
+            };
+        showForm = true;
+    }
+
+    private async Task SaveGuide()
+    {
+        if (string.IsNullOrWhiteSpace(currentGuide.Name))
+        {
+            return;
+        }
+
+        if (currentGuide.Id == 0)
+        {
+            DbContext.Guides.Add(currentGuide);
+        }
+        else
+        {
+            var existingGuide = await DbContext.Guides.FindAsync(currentGuide.Id);
+            if (existingGuide != null)
+            {
+                existingGuide.Name = currentGuide.Name;
+                existingGuide.Email = currentGuide.Email;
+                existingGuide.Phone = currentGuide.Phone;
+                DbContext.Guides.Update(existingGuide);
+            }
+        }
+
+        await DbContext.SaveChangesAsync();
+        await LoadGuidesAsync();
+        currentGuide = new Guide();
+        showForm = false;
+    }
+
+    private async Task DeleteGuide(int id)
+    {
+        var guide = await DbContext.Guides.FindAsync(id);
+        if (guide != null)
+        {
+            DbContext.Guides.Remove(guide);
+            await DbContext.SaveChangesAsync();
+            await LoadGuidesAsync();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        currentGuide = new Guide();
+        showForm = false;
+    }
+}

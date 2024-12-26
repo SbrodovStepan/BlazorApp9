@@ -1,0 +1,201 @@
+﻿@page "/tours"
+@using BlazorApp9.Data
+@rendermode InteractiveServer
+@inject VirtualTourDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Tours</PageTitle>
+
+<h1>Manage Tours</h1>
+
+@if (tours == null)
+{
+    <p>Loading tours...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="AddNewTour">Add New Tour</button>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Guide</th>
+                <th>Route</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tour in tours)
+            {
+                <tr>
+                    <td>@tour.Name</td>
+                    <td>@tour.Description</td>
+                    <td>@tour.Guide?.Name</td>
+                    <td>
+                        @if (tour.StartLatitude != 0 && tour.StartLongitude != 0 && tour.EndLatitude != 0 && tour.EndLongitude != 0)
+                        {
+                            <span>Start (@tour.StartLatitude, @tour.StartLongitude), End (@tour.EndLatitude, @tour.EndLongitude)</span>
+                        }
+                        else
+                        {
+                            <span>Route not set</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" @onclick="() => EditTour(tour)">Edit</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteTour(tour.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showForm)
+{
+    <EditForm Model="currentTour" OnValidSubmit="SaveTour">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <InputText id="name" class="form-control" @bind-Value="currentTour.Name" />
+            <ValidationMessage For="() => currentTour.Name" />
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <InputTextArea id="description" class="form-control" @bind-Value="currentTour.Description" />
+        </div>
+        <div class="mb-3">
+            <label for="guide" class="form-label">Guide</label>
+            <InputSelect id="guide" class="form-control" @bind-Value="currentTour.GuideId">
+                <option value="">-- Select a Guide --</option>
+                @foreach (var guide in guides)
+                {
+                    <option value="@guide.Id">@guide.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-3">
+            <label for="startLatitude" class="form-label">Start Latitude</label>
+            <InputNumber id="startLatitude" class="form-control" @bind-Value="currentTour.StartLatitude" />
+        </div>
+        <div class="mb-3">
+            <label for="startLongitude" class="form-label">Start Longitude</label>
+            <InputNumber id="startLongitude" class="form-control" @bind-Value="currentTour.StartLongitude" />
+        </div>
+        <div class="mb-3">
+            <label for="endLatitude" class="form-label">End Latitude</label>
+            <InputNumber id="endLatitude" class="form-control" @bind-Value="currentTour.EndLatitude" />
+        </div>
+        <div class="mb-3">
+            <label for="endLongitude" class="form-label">End Longitude</label>
+            <InputNumber id="endLongitude" class="form-control" @bind-Value="currentTour.EndLongitude" />
+        </div>
+
+        <button type="submit" class="btn btn-success">Save</button>
+        <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+    </EditForm>
+}
+
+@code {
+    private List<Tour> tours;
+    private List<Guide> guides;
+    private Tour currentTour = new();
+    private bool showForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadToursAsync();
+        guides = await DbContext.Guides.ToListAsync();
+    }
+
+    private async Task LoadToursAsync()
+    {
+        tours = await DbContext.Tours
+            .Include(t => t.Guide)
+            .ToListAsync();
+    }
+
+    private void AddNewTour()
+    {
+        currentTour = new Tour();
+        showForm = true;
+    }
+
+    private void EditTour(Tour tour)
+    {
+        currentTour = new Tour
+            {
+                Id = tour.Id,
+                Name = tour.Name,
+                Description = tour.Description,
+                GuideId = tour.GuideId,
+                StartLatitude = tour.StartLatitude,
+                StartLongitude = tour.StartLongitude,
+                EndLatitude = tour.EndLatitude,
+                EndLongitude = tour.EndLongitude
+            };
+        showForm = true;
+    }
+
+    private async Task SaveTour()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentTour.Name))
+            {
+                throw new InvalidOperationException("Tour name cannot be empty.");
+            }
+
+            if (currentTour.Id == 0)
+            {
+                DbContext.Tours.Add(currentTour);
+            }
+            else
+            {
+                var existingTour = await DbContext.Tours.FindAsync(currentTour.Id);
+                if (existingTour == null)
+                {
+                    throw new InvalidOperationException("Tour not found.");
+                }
+
+                existingTour.Name = currentTour.Name;
+                existingTour.Description = currentTour.Description;
+                existingTour.GuideId = currentTour.GuideId;
+                existingTour.StartLatitude = currentTour.StartLatitude;
+                existingTour.StartLongitude = currentTour.StartLongitude;
+                existingTour.EndLatitude = currentTour.EndLatitude;
+                existingTour.EndLongitude = currentTour.EndLongitude;
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            await LoadToursAsync();
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            throw; 
+        }
+    }
+
+
+    private async Task DeleteTour(int id)
+    {
+        var tour = await DbContext.Tours.FindAsync(id);
+        if (tour != null)
+        {
+            DbContext.Tours.Remove(tour);
+            await DbContext.SaveChangesAsync();
+            await LoadToursAsync();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        currentTour = new Tour();
+        showForm = false;
+    }
+}

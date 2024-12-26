@@ -1,0 +1,52 @@
+﻿@page "/map"
+@using BlazorApp9.Data
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+
+<div id="map" style="height: 1000px; width: 1700px"></div>
+
+@code {
+    [Parameter]
+    public List<Tour> Tours { get; set; } = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("initializeMap");
+
+            if (Tours != null && Tours.Any())
+            {
+                foreach (var tour in Tours)
+                {
+                    if (tour.StartLatitude != 0 && tour.StartLongitude != 0 &&
+                        tour.EndLatitude != 0 && tour.EndLongitude != 0)
+                    {
+                        Console.WriteLine($"Adding route for: {tour.Name}");
+                        await JSRuntime.InvokeVoidAsync("addRouteToMap",
+                            tour.StartLatitude, tour.StartLongitude,
+                            tour.EndLatitude, tour.EndLongitude);
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task RenderRoutes()
+    {
+        if (Tours == null || !Tours.Any())
+            return;
+
+        foreach (var tour in Tours)
+        {
+            if (tour.StartLatitude != 0 && tour.StartLongitude != 0 &&
+                tour.EndLatitude != 0 && tour.EndLongitude != 0)
+            {
+                await JSRuntime.InvokeVoidAsync("addRouteToMap",
+                    tour.StartLatitude, tour.StartLongitude,
+                    tour.EndLatitude, tour.EndLongitude);
+            }
+        }
+    }
+}
